@@ -1,0 +1,115 @@
+---
+// Bande de ligne en haut d'une page projet : toutes les stations de la même ligne,
+// avec « Vous êtes ici » sur le projet courant.
+import type { Projet } from '../lib/projets';
+import { urlProjet } from '../lib/projets';
+
+interface Props {
+  projets: Projet[];
+  courant: string;
+  couleur: string;
+  nom: string;
+}
+const { projets, courant, couleur, nom } = Astro.props;
+---
+
+<nav class="bande" style={`--c:${couleur}`} aria-label={`Stations de la ligne ${nom}`}>
+  <ol>
+    {
+      projets.map((p, i) => {
+        const ici = p.id === courant;
+        return (
+          <li
+            class:list={[
+              { ici, chantier: p.data.statut === 'en-cours', terminus: i === projets.length - 1 },
+            ]}
+          >
+            <a href={urlProjet(p)} aria-current={ici ? 'page' : undefined}>
+              <span class="point" aria-hidden="true" />
+              <span class="nom">{p.data.station ?? p.data.titre}</span>
+              {ici && <span class="ici">Vous êtes ici</span>}
+            </a>
+          </li>
+        );
+      })
+    }
+  </ol>
+</nav>
+
+<style>
+  .bande {
+    overflow-x: auto;
+    padding: 6px 0 4px;
+    scrollbar-width: none;
+  }
+  ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    width: max-content;
+    position: relative;
+  }
+  ol::before {
+    content: '';
+    position: absolute;
+    left: 70px;
+    right: 70px;
+    top: 9px;
+    height: 4px;
+    background: var(--c);
+  }
+  li {
+    width: 140px;
+    flex: 0 0 auto;
+  }
+  a {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--gris);
+    padding-inline: 8px;
+    transition: color 0.3s;
+  }
+  a:hover {
+    color: var(--encre);
+  }
+  .point {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--fond);
+    border: 3px solid var(--c);
+    box-sizing: border-box;
+    transition: transform 0.4s var(--doux);
+  }
+  .chantier .point {
+    border-style: dashed;
+    border-width: 2px;
+  }
+  a:hover .point {
+    transform: scale(1.2);
+  }
+  .nom {
+    font-size: 0.875rem;
+    line-height: 1.3;
+  }
+  .ici .point {
+    background: var(--encre);
+    border-color: var(--encre);
+  }
+  .ici a {
+    color: var(--encre);
+  }
+  .ici .nom {
+    font-weight: 500;
+  }
+  .ici .ici {
+    font-size: 0.75rem;
+    color: var(--gris);
+    margin-top: -6px;
+  }
+</style>

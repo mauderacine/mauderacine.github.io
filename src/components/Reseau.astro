@@ -1,0 +1,368 @@
+---
+// Le plan interactif : une ligne par type de projet, une station par projet.
+import { projetsParLigne, urlProjet } from '../lib/projets';
+import { LARGEUR, HUB, traces, cheminArrondi, positionsStations, couperNom } from '../lib/plan';
+import { moi } from '../config';
+
+const groupes = await projetsParLigne();
+
+// Cadre du plan ajusté aux tracés utilisés (avec de la place pour les étiquettes)
+const ys = groupes.flatMap((g) => (traces[g.trace] ?? traces.centre).map((pt) => pt[1]));
+const haut = Math.min(...ys) - 50;
+const bas = Math.max(...ys) + 64;
+
+let rang = 0;
+const lignesPlan = groupes.map((g) => {
+  const pts = traces[g.trace] ?? traces.centre;
+  const positions = positionsStations(pts, g.projets.length);
+  const fin = pts[pts.length - 1];
+  return {
+    ...g,
+    d: cheminArrondi(pts),
+    fin,
+    stations: g.projets.map((p, i) => ({
+      p,
+      x: positions[i][0],
+      y: positions[i][1],
+      rang: rang++,
+      terminus: i === g.projets.length - 1,
+      // étiquettes en alternance au-dessus / au-dessous
+      dessus: i % 2 === 0,
+      nom: couperNom(p.data.station ?? p.data.titre),
+    })),
+  };
+});
+const prenom = moi.nom.split(' ')[0];
+---
+
+<div class="plan" data-plan>
+  <svg
+    viewBox={`0 ${haut} ${LARGEUR} ${bas - haut}`}
+    role="group"
+    aria-label="Plan des projets, organisé en lignes"
+  >
+    {
+      lignesPlan.map((l) => (
+        <g class="ligne" data-ligne={l.cle} style={`--c:${l.couleur}`}>
+          <path class={`trace ${l.projets.length === 0 ? 'vide' : ''}`} d={l.d} pathLength="1" />
+          <text class="nom-ligne" x={l.fin[0] + 26} y={l.fin[1] + 5}>
+            {l.nom}
+          </text>
+        </g>
+      ))
+    }
+
+    {
+      lignesPlan.map((l) => (
+        <g class="stations" data-ligne={l.cle} style={`--c:${l.couleur}`}>
+          {l.stations.map((s) => (
+            <a
+              href={urlProjet(s.p)}
+              class={`station ${s.p.data.statut === 'en-cours' ? 'chantier' : ''} ${s.terminus ? 'terminus' : ''}`}
+              style={`--i:${s.rang}`}
+              data-ligne={l.cle}
+              data-nom-ligne={l.nom}
+              data-titre={s.p.data.titre}
+              data-resume={s.p.data.resume}
+              data-periode={s.p.data.periode ?? ''}
+              data-statut={s.p.data.statut}
+              aria-label={`${s.p.data.titre}, ligne ${l.nom}`}
+            >
+              <circle class="zone" cx={s.x} cy={s.y} r="26" />
+              <circle class="point" cx={s.x} cy={s.y} r={s.terminus ? 12 : 10} />
+              <text
+                class="nom-station"
+                x={s.x}
+                y={s.dessus ? s.y - 26 - (s.nom.length - 1) * 18 : s.y + 40}
+                text-anchor="middle"
+              >
+                {s.nom.map((ligneNom, j) => (
+                  <tspan x={s.x} dy={j === 0 ? 0 : 18}>
+                    {ligneNom}
+                  </tspan>
+                ))}
+              </text>
+            </a>
+          ))}
+        </g>
+      ))
+    }
+
+    <a
+      href="#a-propos"
+      class="hub"
+      aria-label={`${moi.nom}, à propos`}
+      data-titre={moi.nom}
+      data-resume="Toutes les lignes partent d'ici."
+    >
+      <circle cx={HUB[0]} cy={HUB[1]} r="34" class="zone"></circle>
+      <circle cx={HUB[0]} cy={HUB[1]} r="19" class="anneau"></circle>
+      <text x={HUB[0] - 34} y={HUB[1] + 7} text-anchor="end">{prenom}</text>
+    </a>
+  </svg>
+
+  <div class="bulle" role="status" aria-live="polite" hidden>
+    <p class="bulle-ligne"></p>
+    <p class="bulle-titre"></p>
+    <p class="bulle-resume"></p>
+    <p class="bulle-meta"></p>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-plan]').forEach((plan) => {
+    const bulle = plan.querySelector<HTMLElement>('.bulle')!;
+    const nomLigne = bulle.querySelector('.bulle-ligne')!;
+    const titre = bulle.querySelector('.bulle-titre')!;
+    const resume = bulle.querySelector('.bulle-resume')!;
+    const meta = bulle.querySelector('.bulle-meta')!;
+    const survol = matchMedia('(hover: hover)').matches;
+    const groupes = plan.querySelectorAll<SVGGElement>('.ligne, .stations');
+
+    const montrer = (cible: SVGAElement) => {
+      const ligne = cible.dataset.ligne;
+      if (ligne) groupes.forEach((g) => g.classList.toggle('attenue', g.dataset.ligne !== ligne));
+      if (!survol && document.activeElement !== cible) return;
+
+      nomLigne.textContent = cible.dataset.nomLigne ? `Ligne ${cible.dataset.nomLigne}` : '';
+      titre.textContent = cible.dataset.titre ?? '';
+      resume.textContent = cible.dataset.resume ?? '';
+      const enCours = cible.dataset.statut === 'en-cours' ? 'En cours' : '';
+      meta.textContent = [cible.dataset.periode, enCours].filter(Boolean).join(', ');
+      bulle.hidden = false;
+
+      const cadre = plan.getBoundingClientRect();
+      const point = cible.querySelector('.point, .anneau')!.getBoundingClientRect();
+      const x = point.left + point.width / 2 - cadre.left;
+      const y = point.top - cadre.top;
+      const largeur = bulle.offsetWidth;
+      const gauche = Math.min(Math.max(x - largeur / 2, 8), cadre.width - largeur - 8);
+      const enBas = y < bulle.offsetHeight + 40;
+      bulle.style.left = `${gauche}px`;
+      bulle.style.top = enBas ? `${y + point.height + 14}px` : `${y - bulle.offsetHeight - 14}px`;
+    };
+    const cacher = () => {
+      groupes.forEach((g) => g.classList.remove('attenue'));
+      bulle.hidden = true;
+    };
+
+    plan.querySelectorAll<SVGAElement>('.station, .hub').forEach((s) => {
+      s.addEventListener('pointerenter', () => montrer(s));
+      s.addEventListener('pointerleave', cacher);
+      s.addEventListener('focus', () => montrer(s));
+      s.addEventListener('blur', cacher);
+    });
+
+    // Les lignes se dessinent quand le plan devient visible
+    const obs = new IntersectionObserver(
+      (entrees) => {
+        if (!entrees.some((e) => e.isIntersecting)) return;
+        plan.classList.add('trace-ok');
+        obs.disconnect();
+      },
+      { threshold: 0.25 },
+    );
+    obs.observe(plan);
+  });
+</script>
+
+<style>
+  .plan {
+    position: relative;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    font-family: var(--police);
+  }
+
+  /* Lignes : elles se dessinent une après l'autre */
+  .trace {
+    fill: none;
+    stroke: var(--c);
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition:
+      opacity 0.3s,
+      stroke-dashoffset 1.6s var(--doux);
+  }
+  .trace.vide {
+    stroke-width: 4;
+    opacity: 0.35;
+  }
+  .trace-ok .trace {
+    stroke-dashoffset: 0;
+  }
+  .ligne:nth-of-type(2) .trace {
+    transition-delay: 0s, 0.2s;
+  }
+  .ligne:nth-of-type(3) .trace {
+    transition-delay: 0s, 0.4s;
+  }
+  .ligne:nth-of-type(4) .trace {
+    transition-delay: 0s, 0.6s;
+  }
+  .nom-ligne {
+    fill: var(--gris);
+    font-size: 15px;
+    opacity: 0;
+    transition: opacity 0.6s 1.4s;
+  }
+  .trace-ok .nom-ligne {
+    opacity: 1;
+  }
+
+  /* Stations : apparition en fondu, une à une */
+  .stations,
+  .hub {
+    transition: opacity 0.3s;
+  }
+  .station {
+    cursor: pointer;
+    outline: none;
+  }
+  .zone {
+    fill: transparent;
+  }
+  .point {
+    fill: var(--fond);
+    stroke: var(--c);
+    stroke-width: 4;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 0.4s var(--doux), fill 0.3s;
+  }
+  .station .point,
+  .nom-station {
+    opacity: 0;
+    transition:
+      opacity 0.6s var(--doux),
+      transform 0.4s var(--doux),
+      fill 0.3s;
+  }
+  .trace-ok .station .point,
+  .trace-ok .nom-station {
+    opacity: 1;
+    transition-delay: calc(0.9s + var(--i) * 0.07s), 0s, 0s;
+  }
+  .terminus .point {
+    stroke-width: 5;
+  }
+  .chantier .point {
+    stroke-dasharray: 5 4;
+    stroke-width: 3;
+  }
+  .station:hover .point,
+  .station:focus-visible .point {
+    transform: scale(1.3);
+    fill: var(--c);
+    transition-delay: 0s;
+  }
+  .station:focus-visible .zone {
+    stroke: var(--focus);
+    stroke-width: 1.5;
+  }
+  text {
+    fill: var(--encre);
+    font-size: 15.5px;
+    font-weight: 450;
+    paint-order: stroke;
+    stroke: var(--fond);
+    stroke-width: 6px;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .nom-ligne {
+    stroke: none;
+  }
+
+  /* Point de départ « Maude » */
+  .hub .anneau {
+    fill: var(--encre);
+    stroke: var(--encre);
+    stroke-width: 6;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 0.4s var(--doux);
+  }
+  .hub:hover .anneau,
+  .hub:focus-visible .anneau {
+    transform: scale(1.12);
+  }
+  .hub text {
+    font-size: 21px;
+    font-weight: 500;
+  }
+
+  /* Survol d'une station : les autres lignes s'effacent */
+  .attenue .trace {
+    opacity: 0.12;
+  }
+  .attenue .nom-ligne {
+    opacity: 0.3;
+  }
+  .stations.attenue {
+    opacity: 0.25;
+  }
+
+  /* Bulle d'info : noir sur blanc inversé */
+  .bulle {
+    position: absolute;
+    z-index: 2;
+    width: min(300px, 82%);
+    padding: 16px 18px 18px;
+    background: var(--encre);
+    color: var(--fond);
+    pointer-events: none;
+    display: grid;
+    gap: 6px;
+    animation: bulle 0.3s var(--doux);
+  }
+  @keyframes bulle {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  .bulle[hidden] {
+    display: none;
+  }
+  .bulle-ligne {
+    font-size: 0.8125rem;
+    opacity: 0.65;
+  }
+  .bulle-ligne:empty,
+  .bulle-meta:empty {
+    display: none;
+  }
+  .bulle-titre {
+    font-weight: 500;
+    font-size: 1.0625rem;
+    line-height: 1.25;
+  }
+  .bulle-resume {
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    opacity: 0.8;
+  }
+  .bulle-meta {
+    font-size: 0.8125rem;
+    opacity: 0.65;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trace {
+      stroke-dashoffset: 0;
+    }
+    .station .point,
+    .nom-station,
+    .nom-ligne {
+      opacity: 1;
+    }
+  }
+</style>

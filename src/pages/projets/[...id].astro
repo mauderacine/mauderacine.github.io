@@ -1,0 +1,604 @@
+---
+import { render } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import LigneProjet from '../../components/LigneProjet.astro';
+import { lignes, type CleLigne } from '../../config';
+import { tousLesProjets, urlProjet, lien, type Projet } from '../../lib/projets';
+
+export async function getStaticPaths() {
+  const projets = await tousLesProjets();
+  return projets.map((projet) => ({ params: { id: projet.id }, props: { projet, projets } }));
+}
+
+interface Props {
+  projet: Projet;
+  projets: Projet[];
+}
+const { projet, projets } = Astro.props;
+const { data } = projet;
+const ligne = lignes[data.ligne as CleLigne];
+const memeLigne = projets.filter((p) => p.data.ligne === data.ligne);
+const rang = memeLigne.findIndex((p) => p.id === projet.id);
+const precedent = memeLigne[rang - 1];
+const suivant = memeLigne[rang + 1];
+const { Content } = await render(projet);
+
+const details = [
+  ['Période', data.periode],
+  ['Contexte', data.contexte],
+  ['Rôle', data.role],
+  ['Équipe', data.equipe],
+].filter(([, v]) => v) as [string, string][];
+
+const liens = [
+  ...data.liens,
+  ...(data.github ? [{ label: 'Code sur GitHub', url: `https://github.com/${data.github}` }] : []),
+];
+---
+
+<Base titre={data.titre} description={data.resume}>
+  <article class="conteneur projet" style={`--c:${ligne.couleur}`}>
+    <a class="retour" href={lien('/#projets')}>
+      <svg viewBox="0 0 20 12" width="18" height="11" aria-hidden="true"><path d="M20 6H2M7 1L2 6l5 5" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg>
+      Retour au plan
+    </a>
+
+    <LigneProjet projets={memeLigne} courant={projet.id} couleur={ligne.couleur} nom={ligne.nom} />
+
+    <header class="tete">
+      <p class="etiquettes">
+        <span class="pastille">Ligne {ligne.nom}</span>
+        {data.statut === 'en-cours' && <span class="pastille chantier">En cours</span>}
+        {data.brouillon && <span class="pastille chantier">Brouillon, non publié</span>}
+      </p>
+      <h1>{data.titre}</h1>
+      <p class="resume">{data.resume}</p>
+    </header>
+
+    {
+      (details.length > 0 || data.outils.length > 0) && (
+        <dl class="fiche">
+          {details.map(([cle, val]) => (
+            <div>
+              <dt>{cle}</dt>
+              <dd>{val}</dd>
+            </div>
+          ))}
+          {data.outils.length > 0 && (
+            <div class="outils">
+              <dt>Outils</dt>
+              <dd>{data.outils.join(', ')}</dd>
+            </div>
+          )}
+        </dl>
+      )
+    }
+
+    {
+      liens.length > 0 && (
+        <p class="liens">
+          {liens.map((l) => (
+            <a class="bouton" href={lien(l.url)} rel="noopener">
+              {l.label}
+            </a>
+          ))}
+        </p>
+      )
+    }
+
+    {
+      data.couverture && (
+        <figure class="couverture">
+          <Image
+            src={data.couverture}
+            alt={data.couvertureAlt ?? ''}
+            widths={[640, 1100, 1600]}
+            sizes="(max-width: 1120px) 100vw, 1100px"
+            loading="eager"
+          />
+        </figure>
+      )
+    }
+
+    <div class="texte">
+      <Content />
+    </div>
+
+    {
+      data.extraits.length > 0 && (
+        <section class="extraits" aria-labelledby="titre-extraits">
+          <h2 id="titre-extraits">Extraits de mon travail</h2>
+          {data.extraits.map((e, i) => (
+            <article class:list={['extrait', { inverse: i % 2 === 1 }]} data-reveal>
+              {e.image && (
+                <button type="button" class="vignette" aria-label={`Agrandir : ${e.titre}`}>
+                  <Image src={e.image} alt={e.titre} widths={[600, 1000]} sizes="(max-width: 760px) 100vw, 55vw" />
+                </button>
+              )}
+              <div class="extrait-texte">
+                <h3>{e.titre}</h3>
+                <p>{e.texte}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+      )
+    }
+
+    {
+      data.galerie.length > 0 && (
+        <section class="galerie" aria-label="Galerie">
+          {data.galerie.map((g, i) => (
+            <figure data-reveal style={`--i:${i % 3}`}>
+              <button type="button" class="vignette" data-index={i} aria-label={`Agrandir : ${g.legende ?? 'image ' + (i + 1)}`}>
+                <Image src={g.src} alt={g.legende ?? ''} widths={[480, 900]} sizes="(max-width: 760px) 100vw, 50vw" />
+              </button>
+              {g.legende && <figcaption>{g.legende}</figcaption>}
+            </figure>
+          ))}
+        </section>
+      )
+    }
+
+    {
+      data.documents.length > 0 && (
+        <section class="documents" aria-labelledby="titre-documents">
+          <h2 id="titre-documents">Documents</h2>
+          {data.documents.map((d) => (
+            <details class="document" data-reveal>
+              <summary>
+                <span class="icone-pdf" aria-hidden="true">PDF</span>
+                <span class="doc-texte">
+                  <span class="doc-titre">{d.titre}</span>
+                  {(d.description || d.pages) && (
+                    <span class="doc-desc">
+                      {[d.description, d.pages && `${d.pages} pages`].filter(Boolean).join(', ')}
+                    </span>
+                  )}
+                </span>
+                <span class="doc-action" aria-hidden="true" />
+              </summary>
+              <iframe src={lien(d.fichier)} title={d.titre} loading="lazy" />
+              <p class="doc-liens">
+                <a href={lien(d.fichier)} target="_blank" rel="noopener">Ouvrir dans un nouvel onglet</a>
+                <a href={lien(d.fichier)} download>Télécharger</a>
+              </p>
+            </details>
+          ))}
+        </section>
+      )
+    }
+
+    <nav class="voisins" aria-label="Stations voisines">
+      {
+        precedent ? (
+          <a href={urlProjet(precedent)} class="prec">
+            <span class="sens">Station précédente</span>
+            <span class="titre">{precedent.data.titre}</span>
+          </a>
+        ) : (
+          <span />
+        )
+      }
+      {
+        suivant ? (
+          <a href={urlProjet(suivant)} class="suiv">
+            <span class="sens">Station suivante</span>
+            <span class="titre">{suivant.data.titre}</span>
+          </a>
+        ) : (
+          <a href={lien('/#projets')} class="suiv">
+            <span class="sens">Terminus</span>
+            <span class="titre">Retour au plan</span>
+          </a>
+        )
+      }
+    </nav>
+  </article>
+
+  {
+    (data.galerie.length > 0 || data.extraits.some((e) => e.image)) && (
+      <dialog class="visionneuse" aria-label="Image agrandie">
+        <img alt="" />
+        <form method="dialog">
+          <button aria-label="Fermer">Fermer</button>
+        </form>
+      </dialog>
+    )
+  }
+</Base>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('.visionneuse');
+  if (dialog) {
+    const grande = dialog.querySelector('img')!;
+    document.querySelectorAll<HTMLButtonElement>('.vignette').forEach((b) => {
+      b.addEventListener('click', () => {
+        const img = b.querySelector('img')!;
+        grande.src = img.currentSrc || img.src;
+        grande.alt = img.alt;
+        dialog.showModal();
+      });
+    });
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+  }
+</script>
+
+<style>
+  .projet {
+    padding-block: 8px clamp(80px, 12vw, 160px);
+  }
+  .retour {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: clamp(32px, 5vw, 56px);
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+  .retour svg {
+    transition: transform 0.4s var(--doux);
+  }
+  .retour:hover svg {
+    transform: translateX(-4px);
+  }
+  .tete {
+    margin-top: clamp(40px, 6vw, 80px);
+    display: grid;
+    gap: 22px;
+    animation: entree 1.1s var(--doux) both;
+  }
+  @keyframes entree {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+  }
+  .etiquettes {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 7.5vw, 6.5rem);
+    font-weight: 500;
+    font-stretch: 88%;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+    max-width: 16ch;
+  }
+  .resume {
+    font-size: clamp(1.25rem, 2.4vw, 1.9rem);
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    max-width: 38ch;
+  }
+  .fiche {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0 clamp(24px, 4vw, 48px);
+    margin: clamp(40px, 6vw, 72px) 0 0;
+    border-top: 1px solid var(--encre);
+    animation: entree 1.1s var(--doux) 0.15s both;
+  }
+  .fiche div {
+    padding: 16px 0 20px;
+  }
+  dt {
+    font-size: 0.875rem;
+    color: var(--gris);
+  }
+  dd {
+    margin: 4px 0 0;
+    line-height: 1.45;
+  }
+  .outils ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .liens {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+  .bouton {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 999px;
+    background: var(--encre);
+    color: var(--fond);
+    text-decoration: none;
+    transition: opacity 0.3s;
+  }
+  .bouton:hover {
+    opacity: 0.8;
+  }
+  .couverture {
+    margin: clamp(40px, 6vw, 80px) 0 0;
+    overflow: hidden;
+    animation: entree 1.2s var(--doux) 0.3s both;
+  }
+  .couverture :global(img) {
+    width: 100%;
+  }
+
+  /* Texte Markdown */
+  .texte {
+    max-width: 64ch;
+    margin: clamp(48px, 7vw, 96px) 0 0 auto;
+    margin-right: clamp(0px, 8vw, 120px);
+    font-size: 1.125rem;
+    line-height: 1.7;
+  }
+  .texte :global(h2) {
+    font-size: 1.75rem;
+    font-stretch: 100%;
+    letter-spacing: -0.02em;
+    margin: 2em 0 0.6em;
+  }
+  .texte :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .texte :global(h3) {
+    margin: 1.8em 0 0.5em;
+  }
+  .texte :global(p),
+  .texte :global(ul),
+  .texte :global(ol) {
+    margin: 0 0 1em;
+  }
+  .texte :global(li) {
+    margin-bottom: 0.4em;
+  }
+  .texte :global(strong) {
+    font-weight: 600;
+  }
+  .texte :global(img) {
+    margin: 1.5em 0;
+  }
+  .texte :global(blockquote) {
+    margin: 1.5em 0;
+    padding: 4px 0 4px 22px;
+    border-left: 2px solid var(--encre);
+    font-size: 1.25rem;
+  }
+  .texte :global(blockquote p) {
+    margin: 0;
+  }
+  .texte :global(code) {
+    font-size: 0.9em;
+    padding: 1px 5px;
+    background: var(--surface);
+  }
+  @media (max-width: 900px) {
+    .texte {
+      margin-left: 0;
+      margin-right: 0;
+    }
+  }
+
+  /* Extraits d'un rapport */
+  .extraits,
+  .documents {
+    margin-top: clamp(64px, 9vw, 128px);
+    display: grid;
+    gap: clamp(40px, 6vw, 72px);
+  }
+  .extraits > h2,
+  .documents > h2 {
+    font-size: clamp(2rem, 4vw, 3.25rem);
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--encre);
+  }
+  .documents {
+    gap: 0;
+  }
+  .extrait {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: clamp(24px, 4vw, 56px);
+    align-items: end;
+  }
+  .extrait.inverse {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  }
+  .extrait.inverse .vignette {
+    order: 2;
+  }
+  .extrait-texte {
+    display: grid;
+    gap: 10px;
+    max-width: 44ch;
+  }
+  .extrait-texte h3 {
+    font-size: 1.5rem;
+  }
+  .extrait-texte p {
+    color: var(--gris);
+  }
+  .extrait:not(:has(.vignette)) {
+    grid-template-columns: 1fr;
+  }
+  @media (max-width: 760px) {
+    .extrait,
+    .extrait.inverse {
+      grid-template-columns: 1fr;
+    }
+    .extrait.inverse .vignette {
+      order: 0;
+    }
+  }
+
+  /* Galerie */
+  .galerie {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: clamp(20px, 3vw, 40px);
+    margin-top: clamp(64px, 9vw, 128px);
+  }
+  .galerie figure {
+    margin: 0;
+  }
+  .vignette {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--surface);
+    cursor: zoom-in;
+    overflow: hidden;
+  }
+  .vignette :global(img) {
+    width: 100%;
+    transition: transform 1.2s var(--doux);
+  }
+  .vignette:hover :global(img) {
+    transform: scale(1.035);
+  }
+  .galerie .vignette :global(img) {
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+  }
+  figcaption {
+    margin-top: 10px;
+    font-size: 0.9375rem;
+    color: var(--gris);
+  }
+  .visionneuse {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    max-width: min(1400px, 94vw);
+  }
+  .visionneuse::backdrop {
+    background: var(--fond);
+    opacity: 0.97;
+  }
+  .visionneuse img {
+    max-height: 84vh;
+    width: auto;
+  }
+  .visionneuse form {
+    text-align: center;
+    margin-top: 14px;
+  }
+  .visionneuse button {
+    font: inherit;
+    padding: 10px 20px;
+    border-radius: 999px;
+    border: 1px solid var(--trait);
+    background: var(--fond);
+    color: var(--encre);
+    cursor: pointer;
+  }
+
+  /* Documents PDF */
+  .document {
+    border-bottom: 1px solid var(--trait);
+  }
+  .document summary {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 20px 0;
+    cursor: pointer;
+    list-style: none;
+  }
+  .document summary::-webkit-details-marker {
+    display: none;
+  }
+  .icone-pdf {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 50px;
+    border: 1px solid var(--encre);
+    font-size: 0.6875rem;
+  }
+  .doc-texte {
+    display: grid;
+    flex: 1;
+  }
+  .doc-titre {
+    font-weight: 500;
+    font-size: 1.125rem;
+  }
+  .doc-desc {
+    color: var(--gris);
+    font-size: 0.9375rem;
+  }
+  .doc-action {
+    padding: 6px 16px;
+    border: 1px solid var(--trait);
+    border-radius: 999px;
+    font-size: 0.875rem;
+  }
+  .doc-action::after {
+    content: 'Aperçu';
+  }
+  .document[open] .doc-action {
+    background: var(--encre);
+    border-color: var(--encre);
+    color: var(--fond);
+  }
+  .document[open] .doc-action::after {
+    content: 'Fermer';
+  }
+  .document iframe {
+    display: block;
+    width: 100%;
+    height: min(80vh, 900px);
+    border: 1px solid var(--trait);
+  }
+  .doc-liens {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 14px 0 22px;
+  }
+
+  /* Stations voisines */
+  .voisins {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(16px, 3vw, 40px);
+    margin-top: clamp(80px, 12vw, 160px);
+    border-top: 1px solid var(--encre);
+  }
+  .voisins a {
+    display: grid;
+    gap: 6px;
+    padding-top: 20px;
+    text-decoration: none;
+  }
+  .suiv {
+    text-align: right;
+  }
+  .sens {
+    font-size: 0.875rem;
+    color: var(--gris);
+  }
+  .voisins .titre {
+    font-size: clamp(1.25rem, 2.4vw, 2rem);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    transition: opacity 0.3s;
+  }
+  .voisins a:hover .titre {
+    opacity: 0.6;
+  }
+  @media (max-width: 640px) {
+    .voisins {
+      grid-template-columns: 1fr;
+    }
+    .suiv {
+      text-align: left;
+    }
+  }
+</style>

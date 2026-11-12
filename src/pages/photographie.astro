@@ -1,0 +1,74 @@
+---
+import Base from '../layouts/Base.astro';
+import MurPhotos from '../components/MurPhotos.astro';
+import { photographie } from '../config';
+import { toutesLesPhotos } from '../lib/photos';
+
+const photos = toutesLesPhotos();
+---
+
+<Base titre="Photographie" description={photographie.intro}>
+  <section class="conteneur page-photos">
+    <header class="tete">
+      <h1>Photographie</h1>
+      <div class="sous-titre">
+        <p>{photographie.intro}</p>
+        {photos.length > 0 && <p class="compte">{photos.length} photos</p>}
+      </div>
+    </header>
+
+    {
+      photos.length > 0 ? (
+        <MurPhotos photos={photos} />
+      ) : (
+        <p class="vide">Les photos arrivent bientôt.</p>
+      )
+    }
+  </section>
+</Base>
+
+<style>
+  .page-photos {
+    padding-block: clamp(40px, 8vw, 112px) clamp(80px, 12vw, 160px);
+  }
+  .tete {
+    margin-bottom: clamp(48px, 8vw, 112px);
+  }
+  h1 {
+    font-size: clamp(3.25rem, 12vw, 10.5rem);
+    font-weight: 500;
+    font-stretch: 86%;
+    letter-spacing: -0.055em;
+    line-height: 0.9;
+    margin-left: -0.04em;
+    animation: entree 1.2s var(--doux) both;
+  }
+  @keyframes entree {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+  }
+  .sous-titre {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: clamp(24px, 4vw, 40px);
+    padding-top: 18px;
+    border-top: 1px solid var(--encre);
+    animation: entree 1.2s var(--doux) 0.15s both;
+  }
+  .sous-titre p:first-child {
+    max-width: 44ch;
+    font-size: clamp(1.15rem, 2vw, 1.5rem);
+    line-height: 1.35;
+  }
+  .compte {
+    color: var(--gris);
+  }
+  .vide {
+    color: var(--gris);
+  }
+</style>

@@ -1,0 +1,36 @@
+# Publie le site sur GitHub Pages à chaque push sur main.
+# Une seule fois : sur GitHub, Settings → Pages → Source : « GitHub Actions ».
+name: Publier le site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Reconstruit chaque lundi pour mettre à jour la liste de dépôts GitHub
+  schedule:
+    - cron: '0 11 * * 1'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+      - name: Construire le site
+        uses: withastro/action@v6
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publier sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

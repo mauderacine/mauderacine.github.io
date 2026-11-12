@@ -1,0 +1,616 @@
+---
+import Base from '../layouts/Base.astro';
+import Reseau from '../components/Reseau.astro';
+import ListeLignes from '../components/ListeLignes.astro';
+import DepotsGitHub from '../components/DepotsGitHub.astro';
+import MurPhotos from '../components/MurPhotos.astro';
+import Fleche from '../components/Fleche.astro';
+import { moi, parcours, outils, photographie, horsCours } from '../config';
+import { projetsParLigne, lien } from '../lib/projets';
+import { toutesLesPhotos } from '../lib/photos';
+
+const groupes = await projetsParLigne();
+const total = groupes.reduce((n, g) => n + g.projets.length, 0);
+const photos = toutesLesPhotos();
+const photosAccueil = photos.slice(0, photographie.surAccueil);
+
+const liensContact = [
+  moi.linkedin && { label: 'LinkedIn', url: moi.linkedin },
+  moi.github && { label: 'GitHub', url: `https://github.com/${moi.github}` },
+  moi.cv && { label: 'CV (PDF)', url: lien(moi.cv) },
+].filter(Boolean) as { label: string; url: string }[];
+
+const typesParcours: Record<string, string> = {
+  etudes: 'Études',
+  stage: 'Stage',
+  echange: 'Échange',
+};
+---
+
+<Base>
+  <!-- Accueil -->
+  <section class="accueil conteneur">
+    <h1>{moi.nom}</h1>
+
+    <div class="accueil-intro">
+      {moi.photo && (
+        <div class="accueil-photo-wrap">
+          <img class="accueil-photo" src={moi.photo} alt={moi.nom} />
+        </div>
+      )}
+
+      <p class="accroche">{moi.accroche}</p>
+    </div>
+
+    <dl class="infos">
+      {
+        moi.infos.map((info) => (
+          <div>
+            <dt>{info.titre}</dt>
+            <dd>{info.texte}</dd>
+          </div>
+        ))
+      }
+    </dl>
+    <p class="liens-accueil">
+      <a class="lien-fleche" href="#projets">Voir les {total} projets <Fleche /></a>
+      {moi.courriel && <a href={`mailto:${moi.courriel}`}>Courriel</a>}
+      {liensContact.map((l) => <a href={l.url} rel="noopener">{l.label}</a>)}
+    </p>
+  </section>
+
+  <!-- Projets -->
+  <section class="section conteneur projets" id="projets" aria-labelledby="titre-projets" data-vue="plan">
+    <div class="entete-projets">
+      <div class="entete-section" data-reveal>
+        <h2 id="titre-projets">Projets</h2>
+        <p>
+          Chaque ligne regroupe un type de projet, du plus ancien au plus récent.{' '}
+          <span class="aide-survol">Survole une station pour un aperçu, clique pour l'ouvrir.</span>
+        </p>
+      </div>
+      <div class="vues" role="group" aria-label="Affichage des projets" data-reveal style="--i:1">
+        <button type="button" data-choix="plan" aria-pressed="true">Plan</button>
+        <button type="button" data-choix="liste" aria-pressed="false">Liste</button>
+      </div>
+    </div>
+
+    <div class="panneau-plan">
+      <Reseau />
+      <p class="legende">
+        <span class="point-chantier" aria-hidden="true"></span>
+        Projet en cours
+      </p>
+    </div>
+
+    <div class="panneau-liste">
+      <ListeLignes />
+    </div>
+  </section>
+
+  <DepotsGitHub />
+
+  <!-- Parcours -->
+  <section class="section conteneur" id="parcours" aria-labelledby="titre-parcours">
+    <div class="entete-section" data-reveal>
+      <h2 id="titre-parcours">Parcours</h2>
+      <p>Des sciences de la nature au génie logiciel, puis aux données.</p>
+    </div>
+    <ol class="parcours">
+      {
+        parcours.map((etape, i) => (
+          <li data-reveal style={`--i:${Math.min(i, 3)}`}>
+            <p class="periode">{etape.periode}</p>
+            <div class="etape">
+              <h3>{etape.titre}</h3>
+              <p class="lieu">
+                {etape.lieu}
+                <span class="type">{typesParcours[etape.type] ?? ''}</span>
+              </p>
+            </div>
+            <p class="detail">{etape.detail}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </section>
+
+  <!-- Boîte à outils -->
+  <section class="section conteneur" id="outils" aria-labelledby="titre-outils">
+    <div class="entete-section" data-reveal>
+      <h2 id="titre-outils">Boîte à outils</h2>
+      <p>Ce que j'utilise au quotidien, en cours comme en stage.</p>
+    </div>
+    <div class="outils">
+      {
+        outils.map((g, n) => (
+          <div class="groupe-outils" data-reveal style={`--i:${n % 3}`}>
+            <h3>{g.groupe}</h3>
+            <ul>
+              {g.items.map((item) => (
+                <li>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <!-- À propos -->
+  <section class="section conteneur" id="a-propos" aria-labelledby="titre-apropos">
+    <div class="apropos">
+      <h2 id="titre-apropos" data-reveal>À propos</h2>
+      <div class="apropos-texte" data-reveal style="--i:1">
+        {moi.apropos.map((p) => <p>{p}</p>)}
+      </div>
+      <div class="apropos-listes">
+        <div data-reveal>
+          <h3>Distinctions</h3>
+          <ul class="liste-simple">
+            {
+              moi.distinctions.map((d) => (
+                <li>
+                  <span class="ls-titre">{d.titre}</span>
+                  <span class="ls-detail">{d.detail}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Photographie -->
+  <section class="section conteneur" id="photographie" aria-labelledby="titre-photos">
+    <div class="entete-photos">
+      <div class="entete-section" data-reveal>
+        <h2 id="titre-photos">Photographie</h2>
+        <p>{photographie.intro}</p>
+      </div>
+      <a class="lien-fleche" href="/photographie/">Voir plus <Fleche /></a>
+    </div>
+
+    <MurPhotos photos={photosAccueil} />
+  </section>
+
+  <!-- Sports -->
+  <section class="section conteneur" id="sports" aria-labelledby="titre-sports">
+    <div class="sports-layout" data-reveal>
+      <div class="entete-section sports-texte">
+        <h2 id="titre-sports">Sports</h2>
+        <p>{horsCours.intro}</p>
+      </div>
+
+      {horsCours.image && (
+        <div class="sports-image-wrap">
+          <img src={horsCours.image} alt="Activité sportive de Maude" class="sports-image" />
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section class="section conteneur contact" id="contact" aria-labelledby="titre-contact">
+    <h2 id="titre-contact" data-reveal>Écrivez-moi.</h2>
+    <div class="contact-bas" data-reveal style="--i:1">
+      {moi.courriel && <a class="courriel" href={`mailto:${moi.courriel}`}>{moi.courriel}</a>}
+      {
+        liensContact.length > 0 && (
+          <p class="autres-liens">
+            {liensContact.map((l) => (
+              <a href={l.url} rel="noopener">
+                {l.label}
+              </a>
+            ))}
+          </p>
+        )
+      }
+    </div>
+  </section>
+</Base>
+
+<script>
+  const section = document.querySelector<HTMLElement>('.projets');
+  section?.querySelectorAll<HTMLButtonElement>('[data-choix]').forEach((b) => {
+    b.addEventListener('click', () => {
+      section.dataset.vue = b.dataset.choix;
+      section
+        .querySelectorAll('[data-choix]')
+        .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      section.querySelectorAll('.panneau-liste [data-reveal]').forEach((el) => el.classList.add('vu'));
+    });
+  });
+</script>
+
+<style>
+  /* ── Accueil : une seule entrée en douceur ───────── */
+  .accueil {
+    padding-block: clamp(48px, 12vw, 160px) clamp(56px, 8vw, 112px);
+  }
+  h1 {
+    font-size: clamp(3.5rem, 13.5vw, 12rem);
+    font-weight: 500;
+    font-stretch: 86%;
+    letter-spacing: -0.055em;
+    line-height: 0.88;
+    margin-left: -0.04em;
+    animation: entree 1.2s var(--doux) both;
+  }
+  .accroche {
+    margin-top: clamp(28px, 4vw, 48px);
+    max-width: 30ch;
+    font-size: clamp(1.5rem, 3.1vw, 2.6rem);
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+    animation: entree 1.2s var(--doux) 0.15s both;
+  }
+  @keyframes entree {
+    from {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+  }
+  .infos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px clamp(24px, 4vw, 56px);
+    margin: clamp(48px, 7vw, 96px) 0 0;
+    padding-top: 20px;
+    border-top: 1px solid var(--encre);
+    animation: apparait 1s var(--doux) 0.5s both;
+  }
+  @keyframes apparait {
+    from {
+      opacity: 0;
+    }
+  }
+  .infos dt {
+    color: var(--gris);
+    font-size: 0.875rem;
+  }
+  .infos dd {
+    margin: 4px 0 0;
+    max-width: 30ch;
+  }
+  .liens-accueil {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 28px;
+    margin-top: 40px;
+    animation: apparait 1s var(--doux) 0.7s both;
+  }
+  .accueil-intro {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .accueil-photo-wrap {
+    overflow: hidden;
+    border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  .accueil-photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    aspect-ratio: 3 / 4;
+  }
+  @media (min-width: 640px) {
+    .accueil-intro {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  /* ── Projets ─────────────────────────────── */
+  .entete-projets,
+  .entete-photos {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .entete-photos .lien-fleche {
+    margin-bottom: clamp(32px, 5vw, 56px);
+  }
+  .vues {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: clamp(32px, 5vw, 56px);
+  }
+  .vues button {
+    font: inherit;
+    font-size: 0.9375rem;
+    padding: 6px 16px;
+    border: 1px solid var(--trait);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gris);
+    cursor: pointer;
+    transition:
+      background-color 0.3s,
+      color 0.3s,
+      border-color 0.3s;
+  }
+  .vues button[aria-pressed='true'] {
+    background: var(--encre);
+    border-color: var(--encre);
+    color: var(--fond);
+  }
+  .panneau-plan {
+    border-top: 1px solid var(--trait);
+    padding-top: clamp(24px, 4vw, 48px);
+  }
+  .legende {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 24px;
+    font-size: 0.875rem;
+    color: var(--gris);
+  }
+  .point-chantier {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px dashed var(--encre);
+  }
+  .projets[data-vue='plan'] .panneau-liste,
+  .projets[data-vue='liste'] .panneau-plan {
+    display: none;
+  }
+  @media (max-width: 760px) {
+    .vues,
+    .aide-survol,
+    .projets[data-vue] .panneau-plan {
+      display: none;
+    }
+    .projets[data-vue] .panneau-liste {
+      display: block;
+    }
+  }
+
+  /* ── Photographie ─────────────────────────── */
+  .aide {
+    padding: 20px 22px;
+    border: 1px dashed var(--gris);
+    color: var(--gris);
+    max-width: 70ch;
+  }
+  .aide code {
+    color: var(--encre);
+  }
+
+  /* ── Hors des cours ───────────────────────── */
+  .entete-section {
+    margin-bottom: clamp(28px, 5vw, 48px);
+  }
+  .hors-cours-liste {
+    border-top: 1px solid var(--encre);
+  }
+  .hors-cours-item {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 2fr;
+    gap: clamp(16px, 2vw, 28px);
+    align-items: start;
+    padding: clamp(18px, 2vw, 26px) 0;
+    border-bottom: 1px solid var(--trait);
+  }
+  .hors-cours-sport h3 {
+    margin: 0;
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-weight: 500;
+  }
+  .hors-cours-meta,
+  .hors-cours-detail {
+    color: var(--gris);
+  }
+  .hors-cours-meta p,
+  .hors-cours-detail p {
+    margin: 0;
+    line-height: 1.5;
+  }
+  @media (max-width: 860px) {
+    .hors-cours-item {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ── Parcours ─────────────────────────────── */
+  .parcours {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--encre);
+  }
+  .parcours li {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr) minmax(0, 2fr);
+    gap: 8px clamp(20px, 4vw, 56px);
+    padding: 26px 0 30px;
+    border-bottom: 1px solid var(--trait);
+  }
+  .periode {
+    color: var(--gris);
+    font-size: 0.9375rem;
+    padding-top: 3px;
+  }
+  .etape h3 {
+    font-size: clamp(1.25rem, 2vw, 1.6rem);
+    line-height: 1.2;
+  }
+  .lieu {
+    margin-top: 6px;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .type {
+    color: var(--gris);
+    font-size: 0.875rem;
+  }
+  .detail {
+    color: var(--gris);
+    max-width: 52ch;
+    padding-top: 3px;
+  }
+  @media (max-width: 860px) {
+    .parcours li {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ── Boîte à outils ───────────────────────── */
+  .outils {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0 clamp(24px, 4vw, 56px);
+  }
+  .groupe-outils {
+    padding: 22px 0 30px;
+    border-top: 1px solid var(--encre);
+  }
+  .groupe-outils h3 {
+    font-size: 1rem;
+    color: var(--gris);
+    font-weight: 400;
+    margin-bottom: 14px;
+  }
+  .groupe-outils ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: clamp(1.15rem, 1.6vw, 1.35rem);
+    line-height: 1.5;
+  }
+
+  /* ── À propos ─────────────────────────────── */
+  .apropos {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 40px clamp(32px, 6vw, 96px);
+  }
+  .apropos-texte {
+    display: grid;
+    gap: 22px;
+    max-width: 58ch;
+  }
+  .apropos-texte p {
+    font-size: clamp(1.15rem, 1.7vw, 1.375rem);
+    line-height: 1.5;
+  }
+  .apropos-texte p + p {
+    color: var(--gris);
+  }
+  .apropos-listes {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 32px clamp(24px, 4vw, 56px);
+    margin-top: 24px;
+  }
+  .apropos-listes h3 {
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--gris);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--encre);
+  }
+  .liste-simple {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .liste-simple li {
+    display: grid;
+    gap: 2px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--trait);
+  }
+  .ls-titre {
+    font-weight: 500;
+  }
+  .ls-detail {
+    color: var(--gris);
+    font-size: 0.9375rem;
+  }
+  @media (max-width: 860px) {
+    .apropos {
+      grid-template-columns: 1fr;
+    }
+    .apropos-listes {
+      grid-column: 1;
+    }
+  }
+
+  /* ── Contact ─────────────────────────────── */
+  .contact h2 {
+    font-size: clamp(3rem, 11vw, 9.5rem);
+    font-stretch: 86%;
+    letter-spacing: -0.05em;
+    line-height: 0.9;
+  }
+  .contact-bas {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: end;
+    gap: 24px;
+    margin-top: clamp(32px, 5vw, 64px);
+    padding-top: 22px;
+    border-top: 1px solid var(--encre);
+  }
+  .courriel {
+    font-size: clamp(1.25rem, 3vw, 2.25rem);
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+    transition: background-size 0.6s var(--doux);
+    word-break: break-word;
+  }
+  .courriel:hover {
+    background-size: 100% 1px;
+  }
+  .autres-liens {
+    display: flex;
+    gap: 28px;
+  }
+
+  /* ── Sports ─────────────────────────────── */
+  .sports-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.9fr);
+    gap: clamp(24px, 4vw, 48px);
+    align-items: center;
+  }
+  .sports-texte {
+    margin-bottom: 0;
+  }
+  .sports-image-wrap {
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid var(--trait);
+    background: var(--surface);
+  }
+  .sports-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 320px;
+    object-fit: cover;
+  }
+  @media (max-width: 760px) {
+    .sports-layout {
+      grid-template-columns: 1fr;
+    }
+    .sports-image {
+      min-height: 260px;
+    }
+  }
+</style>

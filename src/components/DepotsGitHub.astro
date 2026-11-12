@@ -1,0 +1,155 @@
+---
+// Récupère tes dépôts publics GitHub au moment de la construction du site.
+// Il suffit de mettre ton nom d'utilisateur dans src/config.ts (moi.github).
+import { moi } from '../config';
+import { tousLesProjets } from '../lib/projets';
+
+type Depot = {
+  name: string;
+  full_name: string;
+  html_url: string;
+  description: string | null;
+  language: string | null;
+  fork: boolean;
+  archived: boolean;
+  pushed_at: string;
+  stargazers_count: number;
+};
+
+let depots: Depot[] = [];
+let erreur = '';
+
+if (moi.github) {
+  try {
+    const rep = await fetch(
+      `https://api.github.com/users/${moi.github}/repos?per_page=100&sort=pushed`,
+      { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'portfolio-astro' } },
+    );
+    if (!rep.ok) throw new Error(`GitHub a répondu ${rep.status}`);
+    depots = await rep.json();
+  } catch (e) {
+    erreur = (e as Error).message;
+  }
+}
+
+// On retire les forks, les dépôts cachés et ceux déjà présentés comme projets
+const dejaPresentes = new Set(
+  (await tousLesProjets())
+    .map((p) => p.data.github?.toLowerCase())
+    .filter(Boolean),
+);
+const cacher = new Set(moi.githubCacher.map((n) => n.toLowerCase()));
+depots = depots
+  .filter(
+    (d) =>
+      !d.fork &&
+      !d.archived &&
+      !cacher.has(d.name.toLowerCase()) &&
+      !dejaPresentes.has(d.full_name.toLowerCase()) &&
+      d.name.toLowerCase() !== `${moi.github}.github.io`.toLowerCase(),
+  )
+  .slice(0, 12);
+
+const mois = new Intl.DateTimeFormat('fr-CA', { month: 'long', year: 'numeric' });
+const afficher = depots.length > 0 || import.meta.env.DEV;
+---
+
+{
+  afficher && (
+    <section class="section conteneur" id="depots" aria-labelledby="titre-depots">
+      <div class="entete-section">
+        <h2 id="titre-depots">Dépôts GitHub</h2>
+        <p>Le code de mes travaux, mis à jour automatiquement depuis GitHub.</p>
+      </div>
+
+      {!moi.github && (
+        <p class="aide">
+          Mode développement : ajoute ton nom d'utilisateur GitHub dans
+          <code>src/config.ts</code> (<code>github: '...'</code>) pour afficher tes dépôts ici.
+          Cette section reste cachée sur le site publié tant qu'elle est vide.
+        </p>
+      )}
+      {erreur && <p class="aide">Impossible de lire GitHub : {erreur}</p>}
+
+      {depots.length > 0 && (
+        <ul class="depots">
+          {depots.map((d) => (
+            <li>
+              <a href={d.html_url} rel="noopener">
+                <span class="nom">{d.name}</span>
+                {d.description && <span class="desc">{d.description}</span>}
+                <span class="meta">
+                  {d.language && <span class="langage">{d.language}</span>}
+                  <span>Mis à jour en {mois.format(new Date(d.pushed_at))}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {moi.github && (
+        <p class="tout">
+          <a href={`https://github.com/${moi.github}`} rel="noopener">
+            Tout voir sur GitHub
+          </a>
+        </p>
+      )}
+    </section>
+  )
+}
+
+<style>
+  .aide {
+    padding: 20px 22px;
+    border: 1px dashed var(--gris);
+    color: var(--gris);
+    max-width: 70ch;
+  }
+  .aide + .aide {
+    margin-top: 12px;
+  }
+  code {
+    font-size: 0.9em;
+    color: var(--encre);
+  }
+  .depots {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    column-gap: clamp(24px, 4vw, 56px);
+  }
+  .depots li {
+    border-top: 1px solid var(--encre);
+  }
+  .depots a {
+    display: grid;
+    gap: 4px;
+    padding: 18px 0 26px;
+    height: 100%;
+    text-decoration: none;
+  }
+  .depots a:hover .nom {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .nom {
+    font-weight: 500;
+    font-size: 1.125rem;
+  }
+  .desc {
+    color: var(--gris);
+    font-size: 0.9375rem;
+  }
+  .meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.8125rem;
+    color: var(--gris);
+  }
+  .tout {
+    margin-top: 24px;
+  }
+</style>

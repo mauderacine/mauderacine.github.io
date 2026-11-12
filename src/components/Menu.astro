@@ -1,0 +1,396 @@
+---
+// Menu flottant : une barre avec le nom de la section courante + ☰.
+// Au clic : le fond devient flou, le panneau s'ouvre, ☰ devient ✕.
+interface Props {
+  items: { label: string; href: string }[];
+  /** Nom affiché dans la barre quand on n'est dans aucune section (ex. « Photographie ») */
+  page?: string;
+}
+const { items, page = 'Accueil' } = Astro.props;
+---
+
+<div class="menu" data-menu data-page={page}>
+  <button
+    type="button"
+    class="barre-menu"
+    aria-haspopup="dialog"
+    aria-controls="panneau-menu"
+    aria-expanded="false"
+  >
+    <span class="etiquette" data-etiquette>{page}</span>
+    <span class="icone" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="sr-only">Ouvrir le menu</span>
+  </button>
+
+  <dialog id="panneau-menu" class="panneau" aria-label="Menu">
+    <div class="tete-panneau">
+      <span class="etiquette" data-etiquette>{page}</span>
+      <button type="button" class="fermer" aria-label="Fermer le menu">
+        <span class="icone ouverte" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+    </div>
+    <nav aria-label="Navigation principale">
+      <ul>
+        {
+          items.map((m, i) => (
+            <li style={`--i:${i}`}>
+              <a href={m.href} data-lien={m.label}>
+                {m.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="pied-panneau">
+      <button type="button" class="theme" data-theme-bouton>
+        <span class="rond" aria-hidden="true"></span>
+        Mode clair / nuit
+      </button>
+    </div>
+  </dialog>
+</div>
+
+<script>
+  const racine = document.querySelector<HTMLElement>('[data-menu]');
+  if (racine) {
+    const bouton = racine.querySelector<HTMLButtonElement>('.barre-menu')!;
+    const panneau = racine.querySelector<HTMLDialogElement>('.panneau')!;
+    const fermer = racine.querySelector<HTMLButtonElement>('.fermer')!;
+    const etiquettes = racine.querySelectorAll<HTMLElement>('[data-etiquette]');
+    const liens = [...racine.querySelectorAll<HTMLAnchorElement>('[data-lien]')];
+
+    const ouvrir = () => {
+      panneau.showModal();
+      bouton.setAttribute('aria-expanded', 'true');
+      document.documentElement.classList.add('menu-ouvert');
+    };
+    const refermer = () => {
+      panneau.classList.add('sortie');
+      setTimeout(() => {
+        panneau.classList.remove('sortie');
+        panneau.close();
+      }, 220);
+    };
+    panneau.addEventListener('close', () => {
+      bouton.setAttribute('aria-expanded', 'false');
+      document.documentElement.classList.remove('menu-ouvert');
+    });
+
+    bouton.addEventListener('click', ouvrir);
+    fermer.addEventListener('click', refermer);
+    // clic sur le fond flou = fermer
+    panneau.addEventListener('click', (e) => {
+      if (e.target === panneau) refermer();
+    });
+    // clic sur un lien : on ferme, puis le navigateur va à la section
+    liens.forEach((a) => a.addEventListener('click', () => panneau.close()));
+
+    // Bouton mode clair / nuit
+    racine.querySelector('[data-theme-bouton]')?.addEventListener('click', () => {
+      const html = document.documentElement;
+      const sombre = matchMedia('(prefers-color-scheme: dark)').matches;
+      const actuel = html.dataset.theme ?? (sombre ? 'dark' : 'light');
+      const suivant = actuel === 'dark' ? 'light' : 'dark';
+      html.dataset.theme = suivant;
+      try {
+        localStorage.setItem('theme', suivant);
+      } catch (e) {}
+    });
+
+    // Le nom de la section où on se trouve s'affiche dans la barre
+    const sections = liens
+      .map((a) => {
+        const id = new URL(a.href, location.href).hash.slice(1);
+        const meme = new URL(a.href, location.href).pathname === location.pathname;
+        return { a, el: id && id !== 'contenu' && meme ? document.getElementById(id) : null };
+      })
+      .filter((s) => s.el);
+    const page = racine.dataset.page ?? 'Accueil';
+    const mettreAJour = () => {
+      let courant = page;
+      let lienCourant = liens.find((a) => a.dataset.lien === page);
+      for (const s of sections) {
+        if (s.el!.getBoundingClientRect().top <= innerHeight * 0.4) {
+          courant = s.a.dataset.lien!;
+          lienCourant = s.a;
+        }
+      }
+      etiquettes.forEach((e) => (e.textContent = courant));
+      liens.forEach((a) => a.toggleAttribute('aria-current', a === lienCourant));
+    };
+    mettreAJour();
+    addEventListener('scroll', mettreAJour, { passive: true });
+  }
+</script>
+
+<style>
+  .menu {
+    position: fixed;
+    top: 16px;
+    right: var(--gouttiere);
+    z-index: 50;
+    width: min(280px, calc(100vw - 2 * var(--gouttiere)));
+  }
+
+  .etiquette {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* La barre fermée */
+  .barre-menu,
+  .tete-panneau {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    width: min(280px, calc(100vw - 2 * var(--gouttiere)));
+    max-width: 100%;
+    height: 52px;
+    padding: 0 16px 0 18px;
+    font: inherit;
+    font-size: 1.0625rem;
+  }
+  .barre-menu {
+    border: 1px solid var(--trait);
+    border-radius: 999px;
+    background: var(--fond);
+    color: var(--encre);
+    cursor: pointer;
+    transition: transform 0.4s var(--doux), background-color 0.2s ease, border-color 0.2s ease;
+  }
+  .barre-menu:hover {
+    transform: translateY(1px);
+    background: var(--surface);
+    border-color: var(--trait);
+  }
+
+  /* ☰ : 3 traits, puis ✕ au clic */
+  .icone {
+    position: relative;
+    width: 32px;
+    height: 16px;
+    flex: 0 0 auto;
+  }
+  .icone i {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    background: currentColor;
+    transition:
+      transform 0.45s var(--doux),
+      opacity 0.3s;
+  }
+  .icone i:nth-child(1) {
+    top: 0;
+  }
+  .icone i:nth-child(2) {
+    top: 7px;
+  }
+  .icone i:nth-child(3) {
+    top: 14px;
+  }
+  .barre-menu:hover .icone i:nth-child(2) {
+    transform: scaleX(0.7);
+    transform-origin: right;
+  }
+  .icone.ouverte {
+    width: 24px;
+    height: 24px;
+  }
+  .icone.ouverte i {
+    top: 11px;
+  }
+  .icone.ouverte i:nth-child(1) {
+    transform: rotate(45deg);
+  }
+  .icone.ouverte i:nth-child(2) {
+    opacity: 0;
+  }
+  .icone.ouverte i:nth-child(3) {
+    transform: rotate(-45deg);
+  }
+
+  .fermer {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-right: -8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--gris);
+    cursor: pointer;
+  }
+  .fermer:hover {
+    color: var(--encre);
+  }
+
+  /* Le panneau ouvert */
+  .panneau {
+    position: fixed;
+    inset: 16px var(--gouttiere) auto auto;
+    margin: 0;
+    padding: 0;
+    width: min(320px, calc(100vw - 2 * var(--gouttiere)));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    border: 1px solid var(--trait);
+    border-radius: 10px;
+    background: var(--fond);
+    color: var(--encre);
+    box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.2);
+    transform-origin: top right;
+  }
+  .panneau[open] {
+    animation: ouvre 0.45s var(--doux);
+  }
+  .panneau.sortie {
+    animation: ferme 0.22s ease-in forwards;
+  }
+  @keyframes ouvre {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(-6px);
+    }
+  }
+  @keyframes ferme {
+    to {
+      opacity: 0;
+      transform: scale(0.97) translateY(-4px);
+    }
+  }
+  /* Le fond flou */
+  .panneau::backdrop {
+    background: rgb(128 128 128 / 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    animation: flou 0.45s var(--doux);
+  }
+  .panneau.sortie::backdrop {
+    animation: flou 0.22s ease-in reverse forwards;
+  }
+  @keyframes flou {
+    from {
+      background: rgb(128 128 128 / 0);
+      backdrop-filter: blur(0);
+      -webkit-backdrop-filter: blur(0);
+    }
+  }
+
+  .tete-panneau {
+    border-bottom: 1px solid var(--trait);
+  }
+  .fermer {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-right: -8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--gris);
+    cursor: pointer;
+  }
+  .fermer:hover {
+    color: var(--encre);
+  }
+
+  nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 10px;
+  }
+  nav li {
+    animation: lien 0.5s var(--doux) both;
+    animation-delay: calc(0.05s + var(--i) * 0.04s);
+  }
+  @keyframes lien {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  nav a {
+    display: block;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: clamp(1.6rem, 4vw, 2.1rem);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    text-decoration: none;
+    transition: background-color 0.2s;
+  }
+  nav a:hover,
+  nav a:focus-visible,
+  nav a[aria-current] {
+    background: var(--surface);
+  }
+
+  .pied-panneau {
+    padding: 8px 24px 20px;
+  }
+  .theme {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border: 0;
+    background: none;
+    color: var(--gris);
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+  }
+  .theme:hover {
+    color: var(--encre);
+  }
+  .rond {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .panneau[open],
+    .panneau.sortie,
+    .panneau::backdrop,
+    nav li {
+      animation: none;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .menu,
+    .barre-menu,
+    .tete-panneau,
+    .panneau {
+      width: min(280px, calc(100vw - 2 * var(--gouttiere)));
+    }
+
+    .barre-menu,
+    .tete-panneau {
+      gap: 14px;
+      padding-inline: 14px 16px;
+      height: 52px;
+      font-size: 0.98rem;
+    }
+
+    .panneau {
+      inset: 12px var(--gouttiere) auto auto;
+      width: min(280px, calc(100vw - 2 * var(--gouttiere)));
+    }
+
+    nav a {
+      font-size: clamp(1.25rem, 7vw, 1.8rem);
+    }
+  }
+</style>

@@ -1,0 +1,115 @@
+---
+import '@fontsource-variable/instrument-sans/wdth.css';
+import '../styles/global.css';
+import { moi } from '../config';
+import Menu from '../components/Menu.astro';
+import { lien } from '../lib/projets';
+import { toutesLesPhotos } from '../lib/photos';
+
+interface Props {
+  titre?: string;
+  description?: string;
+}
+const { titre, description = moi.accroche } = Astro.props;
+const titrePage = titre ? `${titre} | ${moi.nom}` : moi.nom;
+const chemin = Astro.url.pathname;
+const accueil = chemin === lien('/') || chemin === lien('/index.html');
+const ancre = (id: string) => (accueil ? `#${id}` : lien(`/#${id}`));
+const avecPhotos = toutesLesPhotos().length > 0 || import.meta.env.DEV;
+
+const menu = [
+  { label: 'Projets', href: ancre('projets') },
+  { label: 'Parcours', href: ancre('parcours') },
+  { label: 'À propos', href: ancre('a-propos') },
+  ...(avecPhotos ? [{ label: 'Photographie', href: ancre('photographie') }] : []),
+  { label: 'Sports', href: ancre('sports') },
+  { label: 'Contact', href: ancre('contact') },
+];
+---
+
+<!doctype html>
+<html lang="fr-CA">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{titrePage}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={titrePage} />
+    <meta property="og:description" content={description} />
+    <link rel="icon" type="image/svg+xml" href={lien('/favicon.svg')} />
+    <script is:inline>
+      // Thème choisi + active les animations (sans JS, tout reste visible)
+      document.documentElement.classList.add('js');
+      try {
+        const t = localStorage.getItem('theme');
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <a class="sr-only" href="#contenu">Aller au contenu</a>
+    <header class="barre conteneur">
+      <a class="marque" href={lien('/')}>{moi.nom}</a>
+    </header>
+
+    <Menu items={menu} page={titre ?? 'Accueil'} />
+
+    <main id="contenu">
+      <slot />
+    </main>
+
+    <footer class="pied conteneur">
+      <p>© {new Date().getFullYear()} {moi.nom}</p>
+      <p>{moi.ville}</p>
+      <a href="#contenu">Retour en haut</a>
+    </footer>
+
+    <script>
+      // Apparition des éléments quand on arrive dans une section
+      const obs = new IntersectionObserver(
+        (entrees) => {
+          entrees.forEach((e) => {
+            if (e.isIntersecting) {
+              e.target.classList.add('vu');
+              obs.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+      );
+      document.querySelectorAll<HTMLElement>('[data-reveal]').forEach((el) => obs.observe(el));
+    </script>
+  </body>
+</html>
+
+<style>
+  .barre {
+    display: flex;
+    align-items: center;
+    min-height: 88px;
+    padding-block: 16px;
+  }
+  .marque {
+    font-weight: 500;
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+  .pied {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px 32px;
+    padding-block: 28px 36px;
+    border-top: 1px solid var(--trait);
+    color: var(--gris);
+    font-size: 0.875rem;
+  }
+  @media (max-width: 500px) {
+    .pied {
+      grid-template-columns: 1fr auto;
+    }
+    .pied p:nth-child(2) {
+      display: none;
+    }
+  }
+</style>

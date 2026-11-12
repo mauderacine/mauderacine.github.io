@@ -1,0 +1,325 @@
+---
+// Le mur de photos : colonnes décalées, lieu au survol, visionneuse au clic.
+import { Image, getImage } from 'astro:assets';
+import type { Photo } from '../lib/photos';
+
+interface Props {
+  photos: Photo[];
+}
+const { photos } = Astro.props;
+
+// Version grand format pour la visionneuse
+const grandes = await Promise.all(
+  photos.map((p) => getImage({ src: p.src, width: Math.min(2200, p.src.width) })),
+);
+---
+
+<div class="mur" data-mur>
+  {
+    photos.map((p, i) => (
+      <figure class="photo" data-ratio={p.ratio.toFixed(4)} data-reveal style={`--i:${i % 3}`}>
+        <button
+          type="button"
+          class="ouvrir"
+          data-index={i}
+          data-grande={grandes[i].src}
+          data-lieu={p.lieu}
+          aria-label={`Agrandir la photo : ${p.lieu}`}
+        >
+          <Image
+            src={p.src}
+            alt={p.lieu}
+            widths={[480, 800, 1200]}
+            sizes="(max-width: 700px) 50vw, 33vw"
+          />
+        </button>
+        <figcaption>{p.lieu}</figcaption>
+      </figure>
+    ))
+  }
+</div>
+
+<dialog class="visionneuse" aria-label="Photo agrandie">
+  <div class="cadre">
+    <img alt="" />
+  </div>
+  <div class="barre-visionneuse">
+    <p class="v-lieu"></p>
+    <p class="v-compte"></p>
+    <div class="v-boutons">
+      <button type="button" data-v="prec" aria-label="Photo précédente">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>
+      </button>
+      <button type="button" data-v="suiv" aria-label="Photo suivante">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.6"></path></svg>
+      </button>
+      <button type="button" data-v="fermer" class="fermer">Fermer</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-mur]').forEach((mur) => {
+    const photos = [...mur.querySelectorAll<HTMLElement>('.photo')];
+    if (photos.length === 0) return;
+
+    // ── Mise en colonnes : chaque photo va dans la colonne la plus courte ──
+    let nbActuel = 0;
+    const disposer = () => {
+      const largeur = mur.clientWidth;
+      const nb = largeur >= 900 ? 3 : 2;
+      if (nb === nbActuel) return;
+      nbActuel = nb;
+      mur.querySelectorAll('.colonne').forEach((c) => c.remove());
+      const colonnes = Array.from({ length: nb }, () => {
+        const c = document.createElement('div');
+        c.className = 'colonne';
+        mur.append(c);
+        return c;
+      });
+      const hauteurs = new Array(nb).fill(0);
+      // la 2e colonne commence plus bas : on en tient compte
+      if (nb > 1) hauteurs[1] = 0.35;
+      photos.forEach((p) => {
+        const ratio = parseFloat(p.dataset.ratio ?? '1') || 1;
+        const k = hauteurs.indexOf(Math.min(...hauteurs));
+        colonnes[k].append(p);
+        hauteurs[k] += 1 / ratio + 0.12;
+      });
+      mur.classList.add('en-colonnes');
+    };
+    disposer();
+    new ResizeObserver(disposer).observe(mur);
+
+    // ── Visionneuse ──
+    const dialog = mur.nextElementSibling as HTMLDialogElement;
+    const img = dialog.querySelector('img')!;
+    const lieu = dialog.querySelector('.v-lieu')!;
+    const compte = dialog.querySelector('.v-compte')!;
+    const boutons = [...mur.querySelectorAll<HTMLButtonElement>('.ouvrir')].sort(
+      (a, b) => Number(a.dataset.index) - Number(b.dataset.index),
+    );
+    let courant = 0;
+
+    const montrer = (i: number) => {
+      courant = (i + boutons.length) % boutons.length;
+      const b = boutons[courant];
+      img.classList.remove('charge');
+      img.src = b.dataset.grande ?? '';
+      img.alt = b.dataset.lieu ?? '';
+      lieu.textContent = b.dataset.lieu ?? '';
+      compte.textContent = `${courant + 1} / ${boutons.length}`;
+    };
+    img.addEventListener('load', () => img.classList.add('charge'));
+
+    boutons.forEach((b) =>
+      b.addEventListener('click', () => {
+        montrer(Number(b.dataset.index));
+        dialog.showModal();
+      }),
+    );
+    dialog.querySelector('[data-v=prec]')!.addEventListener('click', () => montrer(courant - 1));
+    dialog.querySelector('[data-v=suiv]')!.addEventListener('click', () => montrer(courant + 1));
+    dialog.querySelector('[data-v=fermer]')!.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog || (e.target as HTMLElement).classList.contains('cadre')) dialog.close();
+    });
+    dialog.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') montrer(courant - 1);
+      if (e.key === 'ArrowRight') montrer(courant + 1);
+    });
+    if (boutons.length < 2) dialog.querySelectorAll('[data-v=prec],[data-v=suiv]').forEach((x) => x.remove());
+  });
+</script>
+
+<style>
+  /* Sans JavaScript : simples colonnes CSS */
+  .mur {
+    columns: 3;
+    column-gap: clamp(16px, 3vw, 40px);
+  }
+  .mur.en-colonnes {
+    columns: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: clamp(12px, 3vw, 40px);
+  }
+  .mur :global(.colonne) {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: clamp(28px, 4vw, 56px);
+  }
+  /* la colonne du milieu est décalée vers le bas */
+  .mur :global(.colonne:nth-child(2)) {
+    padding-top: clamp(48px, 12vw, 180px);
+  }
+
+  .photo {
+    margin: 0;
+    break-inside: avoid;
+  }
+  .mur:not(.en-colonnes) .photo {
+    margin-bottom: 40px;
+  }
+  .ouvrir {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--surface);
+    cursor: zoom-in;
+    overflow: hidden;
+  }
+  .ouvrir :global(img) {
+    width: 100%;
+    transition:
+      transform 1.2s var(--doux),
+      opacity 0.5s var(--doux);
+  }
+  figcaption {
+    margin-top: 12px;
+    font-size: 0.9375rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+      opacity 0.4s var(--doux),
+      transform 0.5s var(--doux);
+  }
+  figcaption::before {
+    content: '';
+    width: 18px;
+    height: 1px;
+    background: currentColor;
+    transition: width 0.5s var(--doux);
+  }
+
+  /* Survol : la photo grossit doucement, le lieu apparaît, les autres s'estompent */
+  @media (hover: hover) {
+    .photo:hover .ouvrir :global(img),
+    .photo:focus-within .ouvrir :global(img) {
+      transform: scale(1.035);
+    }
+    .photo:hover figcaption,
+    .photo:focus-within figcaption {
+      opacity: 1;
+      transform: none;
+    }
+    .photo:hover figcaption::before {
+      width: 32px;
+    }
+    .mur:has(.photo:hover) .photo:not(:hover) .ouvrir :global(img) {
+      opacity: 0.3;
+    }
+  }
+  /* Écran tactile : le lieu est toujours visible */
+  @media (hover: none) {
+    figcaption {
+      opacity: 1;
+      transform: none;
+      font-size: 0.8125rem;
+    }
+  }
+
+  /* Visionneuse */
+  .visionneuse {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--fond);
+    color: var(--encre);
+  }
+  .visionneuse[open] {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    animation: ouvre 0.4s var(--doux);
+  }
+  @keyframes ouvre {
+    from {
+      opacity: 0;
+    }
+  }
+  .visionneuse::backdrop {
+    background: var(--fond);
+  }
+  .cadre {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+    padding: clamp(16px, 4vw, 48px) var(--gouttiere) 0;
+    cursor: zoom-out;
+  }
+  .cadre img {
+    max-width: 100%;
+    max-height: calc(100dvh - 120px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    opacity: 0;
+    transform: scale(0.985);
+    transition:
+      opacity 0.5s var(--doux),
+      transform 0.7s var(--doux);
+    cursor: default;
+  }
+  .cadre img.charge {
+    opacity: 1;
+    transform: none;
+  }
+  .barre-visionneuse {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 24px;
+    padding: 18px var(--gouttiere) 22px;
+  }
+  .v-lieu {
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
+  .v-compte {
+    color: var(--gris);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9375rem;
+  }
+  .v-boutons {
+    display: flex;
+    gap: 6px;
+  }
+  .v-boutons button {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--trait);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--encre);
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .v-boutons button:hover {
+    border-color: var(--encre);
+  }
+  .v-boutons .fermer {
+    padding: 0 18px;
+  }
+  @media (max-width: 600px) {
+    .barre-visionneuse {
+      grid-template-columns: 1fr auto;
+    }
+    .v-boutons {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

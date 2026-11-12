@@ -1,0 +1,40 @@
+---
+import Base from '../layouts/Base.astro';
+import { lien } from '../lib/projets';
+---
+
+<Base titre="Station introuvable">
+  <section class="conteneur introuvable">
+    <svg viewBox="0 0 320 60" aria-hidden="true">
+      <path d="M 20 30 L 220 30" stroke="var(--encre)" stroke-width="6" stroke-linecap="round"></path>
+      <path d="M 240 30 L 300 30" stroke="var(--encre)" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 14"></path>
+      <circle cx="120" cy="30" r="12" fill="var(--fond)" stroke="var(--encre)" stroke-width="5"></circle>
+    </svg>
+    <h1>Cette station n'existe pas.</h1>
+    <p>La page a peut-être changé de nom. Le plan, lui, est toujours là.</p>
+    <a href={lien('/#projets')}>Retour au plan</a>
+  </section>
+</Base>
+
+<style>
+  .introuvable {
+    padding-block: 80px 140px;
+    display: grid;
+    gap: 22px;
+    justify-items: start;
+  }
+  svg {
+    width: 240px;
+  }
+  h1 {
+    font-size: clamp(2.5rem, 8vw, 6rem);
+    font-weight: 500;
+    font-stretch: 86%;
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+  }
+  p {
+    color: var(--gris);
+    font-size: 1.125rem;
+  }
+</style>
